@@ -63,7 +63,12 @@ _start_log_aggregator() {
                 for file in "${sorted_files[@]:1}"; do
                     if [ -f "$file" ] && [ -s "$file" ]; then
                         echo "=== Recent content from $(basename "$file") ==="
-                        tail -20 "$file" 2>/dev/null | sed 's/^/  /'
+                        # Check if file is compressed and handle accordingly
+                        if [[ "$file" == *.gz ]]; then
+                            zcat "$file" 2>/dev/null | tail -20 | sed 's/^/  /'
+                        else
+                            tail -20 "$file" 2>/dev/null | sed 's/^/  /'
+                        fi
                         echo "=== End of $(basename "$file") ==="
                     fi
                 done
@@ -152,7 +157,7 @@ done
 if [ $# = 0 ]; then
     # Wait for the log aggregator process
     if [ -f "$LOG_AGGREGATOR_PID_FILE" ]; then
-        local pid=$(cat "$LOG_AGGREGATOR_PID_FILE")
+        pid=$(cat "$LOG_AGGREGATOR_PID_FILE")
         wait "$pid" 2>/dev/null || true
     fi
 else
