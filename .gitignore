@@ -1,3 +1,56 @@
-config
-plugins
-docker-compose*
+# Configuration directories (mounted as volumes)
+config/
+velocity-config/
+minecraft-config/
+plugins/
+minecraft-plugins/
+velocity-plugins/
+
+# World data (mounted as volumes)
+world/
+world_nether/
+world_the_end/
+world_*/
+
+# Logs and crash reports
+logs/
+*.log
+crash-reports/
+hs_err_*.log
+
+# Docker Compose files (keep examples, ignore local overrides)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Environment files
+.env
+.env.*
+
+# Backup files
+backups/
+*.backup
+*.bak
+*.old
+
+# Temporary files
+*.tmp
+*.temp
+cache/
+tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-*
+
+# Docker volumes (if created locally)
+minecraft-server/
+velocity-proxy/

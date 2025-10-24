@@ -1,0 +1,81 @@
+services:
+  proxy:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    image: minecraft-proxy:latest
+    restart: unless-stopped
+    ports:
+      - '25565:25565'
+    networks:
+      - minecraft
+    volumes:
+      - velocity-proxy:/velocity
+      - ./velocity-config:/config
+      - ./velocity-plugins:/velocity/plugins
+      # Uncomment to override default log rotation settings:
+      # - ./log4j2.xml:/velocity/log4j2.xml:ro
+    environment:
+      VERSION: '' # Optional - leave empty for latest (Ex: 3.4.0 or 3.4.0-SNAPSHOT)
+      BUILD: '' # Optional - leave empty for latest build (Ex: 522)
+    # Enhanced logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service=velocity-proxy"
+    # Enhanced health check - tests both process and connectivity
+    # Why: Ensures proxy is not only running but also accepting connections
+    healthcheck:
+      test: ["CMD", "bash", "-c", "tmux has-session -t velocity 2>/dev/null && nc -z localhost 25565 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: minecraft-server:latest
+    restart: unless-stopped
+    networks:
+      - minecraft
+    volumes:
+      - minecraft-server:/minecraft
+      - ./minecraft-config:/config
+      - ./minecraft-plugins:/minecraft/plugins
+      # Optional: Uncomment to use custom worlds
+      # - ./minecraft-world:/minecraft/world
+      # - ./minecraft-world-nether:/minecraft/world_nether
+      # - ./minecraft-world-the-end:/minecraft/world_the_end
+      # Optional: Uncomment to override default log rotation settings:
+      # - ./log4j2.xml:/minecraft/log4j2.xml:ro
+    environment:
+      EULA: 'true'
+      VERSION: '' # Optional - leave empty for latest (Ex: 1.21)
+      BUILD: '' # Optional - leave empty for latest build (Ex: 130)
+    # Enhanced logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service=minecraft-server"
+    # Enhanced health check - tests both process and connectivity
+    # Why: Ensures server is not only running but also accepting connections
+    healthcheck:
+      test: ["CMD", "bash", "-c", "tmux has-session -t minecraft 2>/dev/null && nc -z localhost 25565 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5m
+
+volumes:
+  minecraft-server:
+  velocity-proxy:
+
+networks:
+  minecraft:
+    driver: bridge
