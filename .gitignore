@@ -21,6 +21,7 @@ hs_err_*.log
 # Docker Compose files (keep examples, ignore local overrides)
 docker-compose.override.yml
 docker-compose.local.yml
+docker-compose.yml
 
 # Environment files
 .env
