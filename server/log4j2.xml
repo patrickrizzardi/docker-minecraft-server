@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Paper Server Log Rotation Configuration -->
+<!-- Why: Prevents logs from filling up disk space, auto-compresses old logs -->
+<Configuration status="WARN" packages="com.mojang.util">
+  <Appenders>
+    <!-- Console output (what you see in docker logs) -->
+    <TerminalConsole name="TerminalConsole">
+      <PatternLayout>
+        <LoggerNamePatternSelector defaultPattern="%highlightError{[%d{HH:mm:ss} %level]: [%logger] %msg%n%xEx}">
+          <!-- Minecraft chat format -->
+          <PatternMatch key="net.minecraft.server.MinecraftServer" pattern="%highlightError{[%d{HH:mm:ss} %level]: %msg%n%xEx}" />
+        </LoggerNamePatternSelector>
+      </PatternLayout>
+    </TerminalConsole>
+
+    <!-- Rolling file output (logs/latest.log) -->
+    <!-- Rotates: Only when file hits 100MB (no daily rotation) -->
+    <!-- Keeps: Last 14 days of logs -->
+    <!-- Compression: Gzip (.gz) for old logs -->
+    <RollingRandomAccessFile name="File" fileName="logs/latest.log" filePattern="logs/%d{yyyy-MM-dd}-%i.log.gz" immediateFlush="false">
+      <PatternLayout pattern="[%d{HH:mm:ss}] [%t/%level]: %msg%n" />
+      <Policies>
+        <!-- Rotate when file hits 100MB -->
+        <SizeBasedTriggeringPolicy size="100MB" />
+      </Policies>
+      <!-- Keep max 14 log files, delete older ones -->
+      <DefaultRolloverStrategy max="14" fileIndex="min">
+        <Delete basePath="logs" maxDepth="1">
+          <IfFileName glob="*.log.gz" />
+          <!-- Delete logs older than 14 days -->
+          <IfLastModified age="14d" />
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingRandomAccessFile>
+  </Appenders>
+
+  <Loggers>
+    <!-- Root logger: Send to both console and file -->
+    <Root level="info">
+      <AppenderRef ref="TerminalConsole" level="info" />
+      <AppenderRef ref="File" level="info" />
+    </Root>
+  </Loggers>
+</Configuration>

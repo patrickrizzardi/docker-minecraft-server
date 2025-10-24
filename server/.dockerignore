@@ -1,0 +1,74 @@
+# Logs and crash reports
+# Why: Don't copy logs into Docker image - they're huge and unnecessary
+logs/
+*.log
+crash-reports/
+hs_err_*.log
+
+# World data
+# Why: World files are massive and should be in volumes, not the image
+world/
+world_nether/
+world_the_end/
+world_*/
+
+# Plugin data
+# Why: Plugins are mounted as volumes, don't bake them into image
+plugins/
+
+# Config files
+# Why: Configs are symlinked from /config volume, don't include in image
+config/
+*.yml
+*.yaml
+*.toml
+*.json
+*.properties
+*.txt
+eula.txt
+# Exception: Keep log4j2.xml - we want this baked into the image
+!log4j2.xml
+
+# Backup files
+# Why: Backups don't belong in Docker images
+backups/
+*.backup
+*.bak
+*.old
+
+# Temporary files
+# Why: Temp files are just clutter
+*.tmp
+*.temp
+cache/
+tmp/
+
+# Version control
+# Why: Git history doesn't need to be in Docker image
+.git/
+.gitignore
+.github/
+
+# Development files
+# Why: These are for development, not runtime
+README.md
+LICENSE
+.env
+.env.*
+docker-compose.yml
+
+# OS files
+# Why: OS-specific junk files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+# Why: Don't include IDE configuration
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-*
+
