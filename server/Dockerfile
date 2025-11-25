@@ -72,9 +72,20 @@ RUN chmod +x scripts/*
 # Why: Prevents logs from filling disk, can be overridden via volume mount
 COPY --chown=${USER}:${USER} log4j2.xml log4j2.xml
 
-# Add convenience aliases to bash
-# Why: Makes server management easier - just type "start" instead of full path
-RUN echo "alias start='bash $WORKDIR/scripts/start.sh'" >> ~/.bashrc && \
+# Create user bin directory and symlinks for easy access
+# Why: Makes scripts available as commands without needing full paths or aliases
+RUN mkdir -p ~/bin && \
+    ln -s $WORKDIR/scripts/start.sh ~/bin/start && \
+    ln -s $WORKDIR/scripts/stop.sh ~/bin/stop && \
+    ln -s $WORKDIR/scripts/restart.sh ~/bin/restart && \
+    ln -s $WORKDIR/scripts/status.sh ~/bin/status && \
+    ln -s $WORKDIR/scripts/debug.sh ~/bin/debug
+
+# Add user bin to PATH and create aliases
+# Why: Makes scripts available as commands in all shells, not just interactive bash
+RUN echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc && \
+    echo 'export PATH="$HOME/bin:$PATH"' >> ~/.profile && \
+    echo "alias start='bash $WORKDIR/scripts/start.sh'" >> ~/.bashrc && \
     echo "alias stop='bash $WORKDIR/scripts/stop.sh'" >> ~/.bashrc && \
     echo "alias restart='bash $WORKDIR/scripts/restart.sh'" >> ~/.bashrc && \
     echo "alias status='bash $WORKDIR/scripts/status.sh'" >> ~/.bashrc && \
