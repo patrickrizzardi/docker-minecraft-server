@@ -1,104 +1,45 @@
 #!/bin/bash
 
-# Enhanced logging setup with rotation detection and old log handling
-# Why: Proper log management ensures we don't miss any proxy output and handle log rotation gracefully
+# Logging setup for Velocity proxy
+# Why: Proper log management ensures we don't miss any proxy output
 
 # Set up logging environment
 export LOG_DIR="$WORKDIR/logs"
 export LOG_FILE="$LOG_DIR/latest.log"
-export LOG_PATTERN="$LOG_DIR/*.log*"
-export LOG_AGGREGATOR_PID_FILE="/tmp/log_aggregator.pid"
 
-# Function to clean up background processes on exit
+# Function to clean up on exit
 _cleanup() {
-    echo "Cleaning up background processes..."
-    if [ -f "$LOG_AGGREGATOR_PID_FILE" ]; then
-        local pid=$(cat "$LOG_AGGREGATOR_PID_FILE")
-        if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null
-        fi
-        rm -f "$LOG_AGGREGATOR_PID_FILE"
-    fi
+    echo "Shutting down..."
     exit 0
 }
 
 # Set up signal handlers for graceful shutdown
 trap _cleanup SIGTERM SIGINT
 
-# Function to start log aggregator that monitors all log files
-_start_log_aggregator() {
-    # Kill any existing log aggregator
-    if [ -f "$LOG_AGGREGATOR_PID_FILE" ]; then
-        local old_pid=$(cat "$LOG_AGGREGATOR_PID_FILE")
-        if kill -0 "$old_pid" 2>/dev/null; then
-            kill "$old_pid" 2>/dev/null
-        fi
-        rm -f "$LOG_AGGREGATOR_PID_FILE"
-    fi
+# Function to tail logs with rotation handling (runs in foreground)
+# Why: Running in foreground ensures output goes directly to container stdout
+_tail_logs_forever() {
+    echo "Starting log monitor..."
 
-    # Start log aggregator in background
-    (
-        echo "Starting log aggregator..."
-        
-        # Function to tail all log files and output to stdout
-        _tail_all_logs() {
-            # Find all log files (including rotated ones)
-            local log_files=($(find "$LOG_DIR" -name "*.log*" -type f 2>/dev/null | sort))
-            
-            if [ ${#log_files[@]} -eq 0 ]; then
-                echo "No log files found, waiting..."
-                return
-            fi
-            
-            # If we have multiple log files, we need to handle them intelligently
-            if [ ${#log_files[@]} -gt 1 ]; then
-                # Sort by modification time, newest first
-                local sorted_files=($(ls -t "${log_files[@]}" 2>/dev/null))
-                
-                # Tail the newest file for live updates
-                local newest_file="${sorted_files[0]}"
-                echo "Tailing newest log file: $newest_file"
-                
-                # Also show recent content from older files if they exist
-                for file in "${sorted_files[@]:1}"; do
-                    if [ -f "$file" ] && [ -s "$file" ]; then
-                        echo "=== Recent content from $(basename "$file") ==="
-                        # Check if file is compressed and handle accordingly
-                        if [[ "$file" == *.gz ]]; then
-                            zcat "$file" 2>/dev/null | tail -20 | sed 's/^/  /'
-                        else
-                            tail -20 "$file" 2>/dev/null | sed 's/^/  /'
-                        fi
-                        echo "=== End of $(basename "$file") ==="
-                    fi
-                done
-                
-                # Now tail the newest file for live updates
-                tail -f "$newest_file" 2>/dev/null
-            else
-                # Single log file, just tail it
-                echo "Tailing log file: ${log_files[0]}"
-                tail -f "${log_files[0]}" 2>/dev/null
-            fi
-        }
-        
-        # Monitor for new log files and restart tailing when rotation occurs
-        while true; do
-            _tail_all_logs
-            
-            # If tail exits, wait a moment and check for new files
+    while true; do
+        # Wait for log file to exist
+        while [ ! -f "$LOG_FILE" ]; do
+            echo "Waiting for log file to be created..."
             sleep 2
-            
-            # Check if we should exit (container is shutting down)
-            if [ ! -f "$LOG_AGGREGATOR_PID_FILE" ]; then
-                break
-            fi
         done
-    ) &
-    
-    # Store the PID
-    echo $! > "$LOG_AGGREGATOR_PID_FILE"
-    echo "Log aggregator started with PID: $(cat "$LOG_AGGREGATOR_PID_FILE")"
+
+        echo "Tailing log file: $LOG_FILE"
+
+        # Use tail -F (capital F) which handles rotation automatically
+        # -F = --follow=name --retry (follows by name, retries if file disappears)
+        # This handles log rotation gracefully - when latest.log is rotated,
+        # tail -F will detect the new file and continue following
+        tail -F "$LOG_FILE" 2>/dev/null
+
+        # If tail exits (shouldn't happen with -F unless killed), wait and retry
+        echo "Log tail exited, restarting in 2 seconds..."
+        sleep 2
+    done
 }
 
 # Determine desired version from environment or use latest
@@ -150,35 +91,18 @@ fi
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
 
-# Pre-create log file to avoid race conditions
-# Why: Prevents errors when scripts try to tail a non-existent log during startup
-if [ ! -f "$LOG_FILE" ]; then
-    touch "$LOG_FILE"
-fi
-
-# Start log aggregator first
-_start_log_aggregator
-
 # Start proxy in background (& = don't wait for completion)
 # Why: We need to tail logs while proxy is starting, not after it finishes
 bash $WORKDIR/scripts/start.sh &
 
-# Wait for log file to be created before proceeding
-# Why: tail -f will error if file doesn't exist yet
-while [ ! -f "$LOG_FILE" ]; do
-    sleep 1
-done
-
 # Keep container alive by monitoring logs OR execute custom command
 # Why: Docker containers die when their main process exits
-# - No args: monitor logs forever (keeps container running)
+# - No args: tail logs forever in foreground (keeps container running + outputs to stdout)
 # - With args: execute custom command (for debugging/maintenance)
 if [ $# = 0 ]; then
-    # Wait for the log aggregator process
-    if [ -f "$LOG_AGGREGATOR_PID_FILE" ]; then
-        pid=$(cat "$LOG_AGGREGATOR_PID_FILE")
-        wait "$pid" 2>/dev/null || true
-    fi
+    # Run log tail in foreground - this is the main process now
+    # Output goes directly to container stdout (visible via docker attach/logs)
+    _tail_logs_forever
 else
     exec "$@"
 fi
